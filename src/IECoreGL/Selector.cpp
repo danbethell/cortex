@@ -97,11 +97,12 @@ class Selector::Implementation : public IECore::RefCounted
 			switch( m_mode )
 			{
 				case GLSelect :
+				case IDRender :
 					beginGLSelect();
 					break;
-				case IDRender :
+				/*case IDRender :
 					beginIDRender();
-					break;
+					break;*/
 				case OcclusionQuery :
 					beginOcclusionQuery();
 					break;
@@ -118,11 +119,12 @@ class Selector::Implementation : public IECore::RefCounted
 			switch( m_mode )
 			{
 				case GLSelect :
+				case IDRender :
 					loadNameGLSelect( name );
 					break;
-				case IDRender :
+/*				case IDRender :
 					loadNameIDRender( name );
-					break;
+					break;*/
 				case OcclusionQuery :
 					loadNameOcclusionQuery( name );
 					break;
@@ -141,9 +143,10 @@ class Selector::Implementation : public IECore::RefCounted
 			switch( mode )
 			{
 				case GLSelect :
-					return endGLSelect( hits );
 				case IDRender :
-					return endIDRender( hits );
+					return endGLSelect( hits );
+/*				case IDRender :
+					return endIDRender( hits );*/
 				case OcclusionQuery :
 					return endOcclusionQuery( hits );
 				default :
@@ -160,6 +163,7 @@ class Selector::Implementation : public IECore::RefCounted
 
 		void loadIDShader( const IECoreGL::Shader *shader )
 		{
+			return;
 			const IECoreGL::Shader::Parameter *nameParameter = shader->uniformParameter( "ieCoreGLNameIn" );
 			if( !nameParameter )
 			{
@@ -372,6 +376,7 @@ class Selector::Implementation : public IECore::RefCounted
 		
 		void beginOcclusionQuery()
 		{
+			Exception::throwIfError();
 			m_queries.resize( 0 );
 			m_queryNames.resize( 0 );
 			glClearColor( 0.0, 0.0, 0.0, 1.0 );
@@ -384,11 +389,11 @@ class Selector::Implementation : public IECore::RefCounted
 		{
 			if( m_queries.size() )
 			{
-				glEndQuery( GL_ANY_SAMPLES_PASSED );
+				glEndQueryARB( GL_SAMPLES_PASSED_ARB );
 			}
 			m_queries.push_back( 0 );
-			glGenQueries( 1, &(m_queries[m_queries.size()-1]) );
-			glBeginQuery( GL_ANY_SAMPLES_PASSED, m_queries[m_queries.size()-1] );
+			glGenQueriesARB( 1, &(m_queries[m_queries.size()-1]) );
+			glBeginQueryARB( GL_SAMPLES_PASSED_ARB, m_queries[m_queries.size()-1] );
 			m_queryNames.push_back( name );
 		}
 
@@ -396,20 +401,20 @@ class Selector::Implementation : public IECore::RefCounted
 		{	
 			if( m_queries.size() )
 			{
-				glEndQuery( GL_ANY_SAMPLES_PASSED );
+				glEndQueryARB( GL_SAMPLES_PASSED_ARB );
 			}
 		
 			for( size_t i = 0, e = m_queries.size(); i < e; i++ )
 			{
 				GLuint samplesPassed = 0;
-				glGetQueryObjectuiv( m_queries[i], GL_QUERY_RESULT, &samplesPassed );
+				glGetQueryObjectuivARB( m_queries[i], GL_QUERY_RESULT_ARB, &samplesPassed );
 				if( samplesPassed )
 				{
 					hits.push_back( HitRecord( 0, 0, NameStateComponent::nameFromGLName( m_queryNames[i] ) ) );
 				}
 			}
 		
-			glDeleteQueries( m_queries.size(), &(m_queries[0]) );
+			glDeleteQueriesARB( m_queries.size(), &(m_queries[0]) );
 			m_baseState->add( const_cast<DepthTestStateComponent *>( State::defaultState()->get<DepthTestStateComponent>() ), false /* no override */ );
 			return hits.size();
 		}
