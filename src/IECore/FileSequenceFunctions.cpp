@@ -64,6 +64,20 @@
 
 #endif
 
+#if BOOST_VERSION < 104400
+
+	// Boost 1.44.0 introduced Filesystem v3, which we use by defining BOOST_FILESYSTEM_VERSION=3 via
+	// the build process. Prior versions of boost didn't have this version, so we need this define
+	// to help write code suitable for both.
+
+	#define PATH_TO_STRING filename()
+
+#else
+
+	#define PATH_TO_STRING filename().string()
+
+#endif
+
 using namespace IECore;
 
 void IECore::findSequences( const std::vector< std::string > &names, std::vector< FileSequencePtr > &sequences, size_t minSequenceSize )
