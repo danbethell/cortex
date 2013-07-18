@@ -141,7 +141,7 @@ class LinkedSceneTest( unittest.TestCase ) :
 		i2.writeLink( A )
 		i2.writeTransform( IECore.M44dData( IECore.M44d.createTranslated( IECore.V3d( 2, 0, 0 ) ) ), 0.0 )
 		self.assertRaises( RuntimeError, i2.createChild, "cannotHaveChildrenAtLinks" )
-		self.assertRaises( RuntimeError, i2.writeTags, ["cannotHaveTagsAtLinks"] )
+		i2.writeTags( ["canHaveTagsAtLinks"] )
 		self.assertRaises( RuntimeError, i2.writeObject, IECore.SpherePrimitive( 1 ), 0.0 )  # cannot save objects at link locations.
 		b1 = l.createChild("branch1")
 		b1.writeObject( IECore.SpherePrimitive( 1 ), 0.0 )
@@ -184,6 +184,9 @@ class LinkedSceneTest( unittest.TestCase ) :
 		self.failUnless( LinkedSceneTest.compareBBox( i2.readBoundAtSample(1), IECore.Box3d(IECore.V3d( -1,-1,-1 ), IECore.V3d( 1,1,1 ) ) ) )
 		self.failUnless( LinkedSceneTest.compareBBox( i2.readBoundAtSample(2), IECore.Box3d(IECore.V3d( 0,-1,-1 ), IECore.V3d( 2,1,1 ) ) ) )
 		self.assertEqual( i2.readTransform( 0 ), IECore.M44dData( IECore.M44d.createTranslated( IECore.V3d( 2, 0, 0 ) ) ) )
+		self.assertTrue( i2.hasTag( "canHaveTagsAtLinks" ) )
+		self.assertTrue( l.hasTag( "canHaveTagsAtLinks" ) )	# tags propagate up
+		self.assertTrue( i2.child("a").hasTag( "canHaveTagsAtLinks" ) )		# tags at link locations propagate down as well
 
 		self.assertEqual( l.scene( [ 'instance0' ] ).path(), [ 'instance0' ] )
 		self.assertEqual( l.scene( [ 'instance0', 'A' ] ).path(), [ 'instance0', 'A' ] )
@@ -334,24 +337,33 @@ class LinkedSceneTest( unittest.TestCase ) :
 		# create a base scene
 		l = IECore.LinkedScene( "/tmp/test.lscc", IECore.IndexedIO.OpenMode.Write )
 		a = l.createChild('a')
-		a.writeTags( [ "test" ] )
+		a.writeTags( [ "testA" ] )
+		b = l.createChild('b')
+		b.writeTags(  [ "testB" ] )
 		l.writeTags( [ "tags" ] )
-		del a, l
+		del a, b, l
 
 		# now create a linked scene that should inherit the tags from the base one, plus add other ones
 		l = IECore.LinkedScene( "/tmp/test.lscc", IECore.IndexedIO.OpenMode.Read )
 		a = l.child('a')
+		b = l.child('b')
 
-		self.assertEqual( set(l.readTags()), testSet(["test","tags"]) )
+		self.assertEqual( set(l.readTags()), testSet(["testA", "testB", "tags"]) )
 		self.assertEqual( set(l.readTags(includeChildren=False)), testSet(["tags"]) )
-		self.assertEqual( set(a.readTags()), testSet(["test"]) )
-		self.assertEqual( set(a.readTags(includeChildren=False)), testSet(["test"]) )
+		self.assertEqual( set(a.readTags()), testSet(["testA"]) )
+		self.assertEqual( set(a.readTags(includeChildren=False)), testSet(["testA"]) )
+		self.assertEqual( set(b.readTags()), testSet(["testB"]) )
+		self.assertEqual( set(b.readTags(includeChildren=False)), testSet(["testB"]) )
+		self.assertTrue( a.hasTag("testA") )
+		self.assertFalse( a.hasTag("testB") )
+		self.assertTrue( b.hasTag("testB") )
+		self.assertFalse( b.hasTag("testA") )
 
 		l2 = IECore.LinkedScene( "/tmp/test2.lscc", IECore.IndexedIO.OpenMode.Write )
 
 		A = l2.createChild('A')
 		A.writeLink( l )
-		self.assertRaises( RuntimeError, A.writeTags, ['cantCreateAtLinks'] )
+		A.writeTags( ['linkedA'] )	# creating tag after link
 
 		B = l2.createChild('B')
 		B.writeLink( a )
@@ -363,9 +375,9 @@ class LinkedSceneTest( unittest.TestCase ) :
 
 		D = l2.createChild('D')
 		D.writeTags( [ 'D' ] )
-		self.assertRaises( RuntimeError, D.writeLink, a )	# should not allow creating links to scene locations that have tags assigned.
+		D.writeLink( a )	# creating link after tag
 
-		del l, a, l2, A, B, C, c, D
+		del l, a, b, l2, A, B, C, c, D
 
 		l2 = IECore.LinkedScene( "/tmp/test2.lscc", IECore.IndexedIO.OpenMode.Read )
 		A = l2.child("A")
@@ -376,20 +388,32 @@ class LinkedSceneTest( unittest.TestCase ) :
 		ca = c.child("a")
 		D = l2.child("D")
 
-		self.assertEqual( set(l2.readTags()), testSet(["test","tags","C", "D"]) )
+		self.assertTrue( l2.hasTag("testA") )
+		self.assertTrue( l2.hasTag("testB") )
+		self.assertFalse( l2.hasTag("t") )
+		self.assertEqual( set(l2.readTags()), testSet(["testA", "testB","tags", "C", "D","linkedA"]) )
 		self.assertEqual( set(l2.readTags(includeChildren=False)), testSet([]) )
-		self.assertEqual( set(A.readTags()), testSet(["test","tags"]) )
-		self.assertEqual( set(A.readTags(includeChildren=False)), testSet(["tags"]) )
-		self.assertEqual( set(Aa.readTags()), testSet(["test"]) )
-		self.assertEqual( set(Aa.readTags(includeChildren=False)), testSet(["test"]) )
-		self.assertEqual( set(B.readTags()), testSet(["test"]) )
-		self.assertEqual( set(C.readTags()), testSet(["test","tags","C"]) )
+		self.assertEqual( set(A.readTags()), testSet(["testA","testB", "tags","linkedA"]) )
+		self.assertTrue( A.hasTag( "linkedA" ) )
+		self.assertTrue( A.hasTag( "tags" ) )
+		self.assertTrue( A.hasTag( "testA" ) )
+		self.assertTrue( A.hasTag( "testB" ) )
+		self.assertFalse( A.hasTag("C") )
+		self.assertEqual( set(A.readTags(includeChildren=False)), testSet(["tags","linkedA"]) )
+		self.assertEqual( set(Aa.readTags()), testSet(["testA", "linkedA"]) )
+		self.assertEqual( set(Aa.readTags(includeChildren=False)), testSet(["testA"]) )
+		self.assertTrue( Aa.hasTag("testA") )
+		self.assertFalse( Aa.hasTag("testB") )
+		self.assertEqual( set(B.readTags()), testSet(["testA"]) )
+		self.assertEqual( set(C.readTags()), testSet(["testA","testB","tags","C"]) )
 		self.assertEqual( set(C.readTags(includeChildren=False)), testSet(["C"]) )
-		self.assertEqual( set(c.readTags()), testSet(["test","tags"]) )
+		self.assertEqual( set(c.readTags()), testSet(["testA", "testB","tags"]) )
 		self.assertEqual( set(c.readTags(includeChildren=False)), testSet(["tags"]) )
-		self.assertEqual( set(ca.readTags()), testSet(["test"]) )
+		self.assertEqual( set(ca.readTags()), testSet(["testA"]) )
+		self.assertTrue( ca.hasTag("testA") )
+		self.assertFalse( ca.hasTag("testB") )
 		self.assertEqual( set(C.readTags(includeChildren=False)), testSet(["C"]) )
-		self.assertEqual( set(D.readTags()), testSet(["D"]) )
+		self.assertEqual( set(D.readTags()), testSet(["D", "testA"]) )
 
 if __name__ == "__main__":
 	unittest.main()

@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2008-2013, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2012-2013, Image Engine Design Inc. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -32,76 +32,14 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#include "boost/python.hpp"
-#include "boost/python/make_constructor.hpp"
-
-#include <sstream>
-
-#include "IECore/SplineData.h"
-#include "IECorePython/RunTimeTypedBinding.h"
-#include "IECorePython/IECoreBinding.h"
-#include "IECorePython/SimpleTypedDataBinding.h"
-
-using namespace std;
-using std::string;
-using namespace boost;
-using namespace boost::python;
-using namespace Imath;
-using namespace IECore;
-
-namespace IECorePython
+namespace IECoreGL
 {
-
-template<class T>
-static std::string repr( T &x )
-{
-	std::stringstream s;
-
-	s << "IECore." << x.typeName() << "( ";
-
-	object item( x.readable() );
-
-	assert( item.attr( "__repr__" ) != object() );
-
-	s << call_method< std::string >( item.ptr(), "__repr__" );
-
-	s << " )";
-
-	return s.str();
-}
-
-template<class T>
-static void setValue( T &that, const typename T::ValueType &v )
-{
-	that.writable() = v;
-}
-
-template<class T>
-static typename T::ValueType &getValue( T &that )
-{
-	return that.writable();
-}
 
 template< typename T >
-void bindSplineData()
+IECore::ConstRunTimeTypedPtr CachedConverter::convert( const IECore::Object *object, T converter ) 
 {
-	TypedDataFromType<T>();
-
-	RunTimeTypedClass<T>()
-		.def( init<>() )
-		.def( init<const typename T::ValueType &>() )
-		.add_property( "value", make_function( &getValue<T>, return_internal_reference<>() ), &setValue<T> )
-		.def( "__repr__", &repr<T> )
-		.def( "hasBase", &T::hasBase ).staticmethod( "hasBase" )
-	;
+	return convert( object, converter, converter.hash(object) );
 }
 
-void bindSplineData()
-{
-	bindSplineData<SplineffData>();
-	bindSplineData<SplineddData>();
-	bindSplineData<SplinefColor3fData>();
-	bindSplineData<SplinefColor4fData>();
-}
+} // namespace IECoreGL
 
-} // namespace IECorePython
