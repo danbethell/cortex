@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-//  Copyright (c) 2007-2009, Image Engine Design Inc. All rights reserved.
+//  Copyright (c) 2007-2013, Image Engine Design Inc. All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
 //  modification, are permitted provided that the following conditions are
@@ -32,50 +32,57 @@
 //
 //////////////////////////////////////////////////////////////////////////
 
-#ifndef IE_CORE_ASSOCIATEDLEGENDRETEST_H
-#define IE_CORE_ASSOCIATEDLEGENDRETEST_H
+#ifndef IECOREMAYA_SCENESHAPEINTERFACECOMPONENTBOUNDITERATOR_H
+#define IECOREMAYA_SCENESHAPEINTERFACECOMPONENTBOUNDITERATOR_H
 
-#include "boost/test/unit_test.hpp"
-#include "boost/test/floating_point_comparison.hpp"
+#include "maya/MPxGeometryIterator.h"
+#include "maya/MPoint.h"
+#include "maya/MBoundingBox.h"
+#include "maya/MObjectArray.h"
 
-#include "IECore/AssociatedLegendre.h"
+#include "OpenEXR/ImathBox.h"
 
-namespace IECore
+#include "IECoreMaya/SceneShapeInterface.h"
+
+namespace IECoreMaya
 {
-void addAssociatedLegendreTest(boost::unit_test::test_suite* test);
 
-template<typename T>
-class AssociatedLegendreTest
+/// The SceneShapeInterfaceComponentBoundIterator allows maya to iterate over the bounding box corners of
+/// the SceneShapeInterface components. It's currently used so you can frame scene shape components
+/// in the maya viewport.
+class SceneShapeInterfaceComponentBoundIterator : public MPxGeometryIterator
 {
+
 	public:
 
-		void testEvaluation();
-		void testDepthEvaluation();
-
+		SceneShapeInterfaceComponentBoundIterator( void *userGeometry, MObjectArray &components );
+		SceneShapeInterfaceComponentBoundIterator( void *userGeometry, MObject &components );
+		~SceneShapeInterfaceComponentBoundIterator();
+		
+		virtual bool isDone() const;
+		virtual void next();
+		virtual void reset();
+		virtual void component( MObject &component );
+		virtual bool hasPoints() const;
+		virtual int iteratorCount() const;
+		virtual MPoint point() const;
+		virtual void setPoint(const MPoint &) const;
+		virtual int setPointGetNext(MPoint &);
+		virtual int index() const;
+		virtual bool hasNormals() const;
+		virtual int indexUnsimplified() const;
+		
 	private:
-
-		static T targetPolynomial( unsigned int l, unsigned int m, T x );
+		
+		void computeNumComponents();
+		
+		SceneShapeInterface* m_sceneShapeInterface;
+		unsigned m_idx;
+		MObjectArray m_components;
+		unsigned m_numComponents;
+	
 };
 
-struct AssociatedLegendreTestSuite : public boost::unit_test::test_suite
-{
+} // namespace IECoreMaya
 
-	AssociatedLegendreTestSuite() : boost::unit_test::test_suite("AssociatedLegendreTestSuite")
-	{
-		addAssociatedLegendreTest<double>();
-	}
-
-	template< typename T >
-	void addAssociatedLegendreTest()
-	{
-		static boost::shared_ptr< AssociatedLegendreTest< T > > instance(new AssociatedLegendreTest<T>());
-
-		add( BOOST_CLASS_TEST_CASE( &AssociatedLegendreTest< T >::testEvaluation, instance ) );
-		add( BOOST_CLASS_TEST_CASE( &AssociatedLegendreTest< T >::testDepthEvaluation, instance ) );
-	}
-
-};
-}
-
-#endif
-
+#endif // IECOREMAYA_SCENESHAPEINTERFACECOMPONENTBOUNDITERATOR_H
