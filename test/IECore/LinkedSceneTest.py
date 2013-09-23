@@ -128,10 +128,16 @@ class LinkedSceneTest( unittest.TestCase ) :
 		
 	def testWriting( self ):
 
+		generateTestFiles = False	# change this to True to recreate the LinkedScene files for other tests.
+		if generateTestFiles :
+			outputPath = "test/IECore/data/sccFiles"
+		else :
+			outputPath = "/tmp"
+
 		m = IECore.SceneCache( "test/IECore/data/sccFiles/animatedSpheres.scc", IECore.IndexedIO.OpenMode.Read )
 		A = m.child("A")
 
-		l = IECore.LinkedScene( "/tmp/instancedSpheres.lscc", IECore.IndexedIO.OpenMode.Write )
+		l = IECore.LinkedScene( os.path.join(outputPath,"instancedSpheres.lscc"), IECore.IndexedIO.OpenMode.Write )
 		i0 = l.createChild("instance0")
 		i0.writeLink( m )
 		i1 = l.createChild("instance1")
@@ -152,7 +158,7 @@ class LinkedSceneTest( unittest.TestCase ) :
 		self.assertRaises( RuntimeError, b2.writeLink, A )
 		del i0, i1, i2, l, b1, b2, c2
 
-		l = IECore.LinkedScene( "/tmp/instancedSpheres.lscc", IECore.IndexedIO.OpenMode.Read )
+		l = IECore.LinkedScene( os.path.join(outputPath,"instancedSpheres.lscc"), IECore.IndexedIO.OpenMode.Read )
 
 		self.assertEqual( l.numBoundSamples(), 4 )
 		self.assertEqual( set(l.childNames()), set(['instance0','instance1','instance2','branch1','branch2']) )
@@ -194,7 +200,7 @@ class LinkedSceneTest( unittest.TestCase ) :
 		self.assertEqual( i0.path(), [ 'instance0' ] )
 
 		# test saving a two level LinkedScene
-		l2 = IECore.LinkedScene( "/tmp/environment.lscc", IECore.IndexedIO.OpenMode.Write )
+		l2 = IECore.LinkedScene( os.path.join(outputPath,"environment.lscc"), IECore.IndexedIO.OpenMode.Write )
 		base = l2.createChild("base")
 		t1 = base.createChild("test1")
 		t1.writeLink( l )
@@ -434,8 +440,8 @@ class LinkedSceneTest( unittest.TestCase ) :
 				self.assertTrue( virtualScene.hasChild(c) )
 				recurseCompare( basePath + [ str(c) ], virtualScene.child(c), realScene.child(c), False )
 
-		env = IECore.LinkedScene( "test/IECore/data/sccFiles/environment.lscc", IECore.IndexedIO.OpenMode.Read )	# created by testWriting()
-		l = IECore.LinkedScene( "test/IECore/data/sccFiles/instancedSpheres.lscc", IECore.IndexedIO.OpenMode.Read )	# created by testWriting()
+		env = IECore.LinkedScene( "test/IECore/data/sccFiles/environment.lscc", IECore.IndexedIO.OpenMode.Read )	# created by testWriting() when generateTestFiles=True
+		l = IECore.LinkedScene( "test/IECore/data/sccFiles/instancedSpheres.lscc", IECore.IndexedIO.OpenMode.Read )	# created by testWriting() when generateTestFiles=True
 		m = IECore.SceneCache( "test/IECore/data/sccFiles/animatedSpheres.scc", IECore.IndexedIO.OpenMode.Read )
 
 		base = env.child('base')
@@ -574,6 +580,47 @@ class LinkedSceneTest( unittest.TestCase ) :
 		self.assertEqual( set(C.readTags(includeChildren=False)), testSet(["C"]) )
 		self.assertEqual( set(D.readTags()), testSet(["D", "testA"]) )
 	
+	def testMissingLinkedScene( self ) :
+		
+		import shutil
+		shutil.copyfile( "test/IECore/data/sccFiles/animatedSpheres.scc", "/tmp/toBeRemoved.scc" )
+		
+		m = IECore.SceneCache( "/tmp/toBeRemoved.scc", IECore.IndexedIO.OpenMode.Read )
+		A = m.child("A")
+		
+		l = IECore.LinkedScene( "/tmp/test.lscc", IECore.IndexedIO.OpenMode.Write )
+		i0 = l.createChild("instance0")
+		i0.writeLink( m )
+		i1 = l.createChild("instance1")
+		i1.writeLink( m )
+		i1.writeTransform( IECore.M44dData( IECore.M44d.createTranslated( IECore.V3d( 1, 0, 0 ) ) ), 0.0 )
+		i2 = l.createChild("instance2")
+		i2.writeLink( A )
+		i2.writeTransform( IECore.M44dData( IECore.M44d.createTranslated( IECore.V3d( 2, 0, 0 ) ) ), 0.0 )
+		del i0, i1, i2, l, m, A
+
+		l = IECore.LinkedScene( "/tmp/test.lscc", IECore.IndexedIO.OpenMode.Read )
+		self.assertEqual( sorted(l.childNames()), [ "instance0", "instance1", "instance2" ] )
+		i0 = l.child( "instance0" )
+		self.assertEqual( sorted(i0.childNames()), [ "A", "B" ] )
+		i1 = l.child( "instance1" )
+		self.assertEqual( sorted(i1.childNames()), [ "A", "B" ] )
+		i2 = l.child( "instance2" )
+		self.assertEqual( i2.childNames(), [ "a" ] )
+		del l, i0, i1, i2
+		
+		os.remove( "/tmp/toBeRemoved.scc" )
+		IECore.SharedSceneInterfaces.clear()
+		
+		l = IECore.LinkedScene( "/tmp/test.lscc", IECore.IndexedIO.OpenMode.Read )
+		self.assertEqual( sorted(l.childNames()), [ "instance0", "instance1", "instance2" ] )
+		i0 = l.child( "instance0" )
+		self.assertEqual( i0.childNames(), [] )
+		i1 = l.child( "instance1" )
+		self.assertEqual( i1.childNames(), [] )
+		i2 = l.child( "instance2" )
+		self.assertEqual( i2.childNames(), [] )
+
 if __name__ == "__main__":
 	unittest.main()
 
